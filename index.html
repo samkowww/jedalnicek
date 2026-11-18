@@ -189,6 +189,14 @@ table.nt th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-sp
 .cmpbtn span{font-weight:700;font-size:15px}
 .cmpbtn em{font-style:normal;font-size:11px;color:var(--ok);font-weight:700}
 @media(max-width:600px){.cmpgrid,.chainpick{grid-template-columns:1fr 1fr}}
+.nutin{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.nutin .nbox{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
+.nutin .nbox div{position:relative}
+.nutin input{padding:10px 40px 10px 10px;font-weight:700;font-size:17px;color:var(--ink)}
+.nutin em{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-style:normal;font-size:12px;color:var(--muted)}
+.lbl{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+@media(max-width:600px){.nutin{grid-template-columns:1fr 1fr}}
+.switch>span:last-child{text-align:left;flex:1}
 .foot{margin-top:30px;font-size:13px;color:var(--muted);text-align:center}
 .search{margin-bottom:12px}
 .fadein{animation:fi .3s ease-out}
@@ -376,6 +384,14 @@ function fac(g,c){return g.pr.f&&g.pr.f[c]!=null?g.pr.f[c]:F[c]}
 function unitP(id,c){const g=I[id],f=fac(g,c);const o=[];(g.pr.p||[]).forEach(([s,p])=>o.push(p/s));if(g.pr.l)o.push(g.pr.l[1]/1000);if(g.pr.pt&&c!=='L')o.push(g.pr.pt/1000);return Math.min(...o)*f}
 const R=RAW_R.map(r=>{const ing=r.i.split(' ').map(x=>{const [k,v]=x.split(':');if(!I[k])console.warn('chyba surovina',k);return [k,+v]});const tg=r.tg.split(' ');const rr={...r,ing,tg,k:r.k||4};rr.nut=nutOf(rr);rr.cost=ing.reduce((s,[k,q])=>s+unitP(k,'L')*q,0);return rr});
 const RB=Object.fromEntries(R.map(r=>[r.id,r]));
+const SHARE={b:0.25,l:0.40,d:0.35};
+const PFC=new Map();
+function pf(r,m){ // násobok porcie, aby jedlo sedelo na denný cieľ kalórií
+ if(!S.nut||!S.nut.on||!m||!SHARE[m])return 1;
+ const key=r.id+m+S.nut.kcal;if(PFC.has(key))return PFC.get(key);
+ const f=Math.round(Math.min(1.8,Math.max(0.6,S.nut.kcal*SHARE[m]/r.nut.kcal))*20)/20;PFC.set(key,f);return f}
+function nutP(r,m){const f=pf(r,m),n=r.nut;return {kcal:n.kcal*f,b:n.b*f,s:n.s*f,t:n.t*f}}
+function fmtF(f){return (f+'').replace('.',',')+'×'}
 function nutOf(r){const o={kcal:0,b:0,s:0,t:0};for(const [k,q] of r.ing){const g=I[k];const f=g.u==='ks'?q:q/100;o.kcal+=g.kcal*f;o.b+=g.b*f;o.s+=g.s*f;o.t+=g.t*f}return o}
 
 const MEALS={b:{n:'Raňajky',e:'🌅',max:4},l:{n:'Obed',e:'🍲',max:3},d:{n:'Večera',e:'🌙',max:4}};
@@ -398,11 +414,11 @@ const Q=[
 ];
 
 /* ---------- state ---------- */
-const DEF={chain:'L',pult:true,budget:35,days:7,persons:1,meals:['b','l','d'],pantry:true,variety:'save',goal:'normal',start:new Date().toISOString().slice(0,10),excl:[],exclText:'',ans:{}};
+const DEF={chain:'L',pult:true,nut:{on:true,kcal:2000,b:90,s:250,t:70},calc:{sex:'m',age:20,w:75,h:180,act:1.55,goal:'keep'},budget:35,days:7,persons:1,meals:['b','l','d'],pantry:true,variety:'save',goal:'normal',start:new Date().toISOString().slice(0,10),excl:[],exclText:'',ans:{}};
 let S=load()||JSON.parse(JSON.stringify(DEF));
 let V={screen:'home',qi:0,tab:'plan',plan:null,cost:null,warn:[],checked:{}};
 function save(){try{localStorage.setItem('jedalnicek_v1',JSON.stringify(S))}catch(e){}}
-function load(){try{const x=JSON.parse(localStorage.getItem('jedalnicek_v1'));if(x&&x.ans)return {...DEF,...x}}catch(e){}return null}
+function load(){try{const x=JSON.parse(localStorage.getItem('jedalnicek_v1'));if(x&&x.ans){const o={...DEF,...x};o.nut={...DEF.nut,...(x.nut||{})};o.calc={...DEF.calc,...(x.calc||{})};return o}}catch(e){}return null}
 
 /* ---------- helpers ---------- */
 const $=s=>document.querySelector(s);
@@ -438,8 +454,9 @@ function score(r,m){
   const lim=+A.b_time||60;if(r.t>lim)mis++;else sc+=1}
  if(m==='l'){multi('l_meat');multi('l_side');single('l_style');const sp=A.l_spicy;if(sp==='nie'&&r.tg.includes('pikant'))mis++;if(sp==='ano'&&r.tg.includes('pikant'))sc+=1}
  if(m==='d'){single('d_weight');single('d_temp');single('d_taste')}
- if(S.goal==='protein')sc+=r.nut.b/10;
- if(S.goal==='light')sc-=r.nut.kcal/250;
+ if(S.nut&&S.nut.on){const n=nutP(r,m),sh=SHARE[m];
+  const dev=(v,t)=>t>0?Math.min(1.5,Math.abs(v-t*sh)/(t*sh)):0;
+  sc-=3*dev(n.b,S.nut.b)+1.2*dev(n.s,S.nut.s)+1.2*dev(n.t,S.nut.t)+2*dev(n.kcal,S.nut.kcal)}
  return {sc,mis}}
 function candidates(m,relaxed){
  const all=R.filter(r=>r.m.includes(m)&&!excluded(r)).map(r=>({r,...score(r,m)}));
@@ -474,7 +491,7 @@ function buy(id,q,c){
  const o=buyRegular(id,q,c);BUYMEMO.set(key,o);return o}
 function calcCost(plan,c){
  c=c||S.chain;const need={};
- for(const m in plan)for(const bl of plan[m]){const r=RB[bl.rid];for(const [k,q] of r.ing)need[k]=(need[k]||0)+q*S.persons*bl.len}
+ for(const m in plan)for(const bl of plan[m]){const r=RB[bl.rid];const f=pf(r,m);for(const [k,q] of r.ing)need[k]=(need[k]||0)+q*f*S.persons*bl.len}
  let total=0,waste=0;const items=[],pantry=[];
  for(const k in need){const g=I[k],q=need[k];
   if(g.pan&&S.pantry){pantry.push({k,q});continue}
@@ -557,6 +574,22 @@ function home(){
   <div class="feat"><span class="e">📖</span><b>${R.length} receptov</b><span class="muted">Slovenská klasika aj svetová kuchyňa, s výživovými hodnotami.</span></div>
  </div>`}
 
+function nutHint(){const k=S.nut.b*4+S.nut.s*4+S.nut.t*9;const d=k-S.nut.kcal;
+ return `Z makier vychádza ${Math.round(k)} kcal${Math.abs(d)>S.nut.kcal*0.08?` – <b style="color:var(--warn)">to je o ${Math.abs(Math.round(d))} kcal ${d>0?'viac':'menej'} ako cieľ</b>, skús „Dopočítať makrá“`:' ✓'} · B ${Math.round(S.nut.b*4/S.nut.kcal*100)} % · S ${Math.round(S.nut.s*4/S.nut.kcal*100)} % · T ${Math.round(S.nut.t*9/S.nut.kcal*100)} %`}
+function calcNut(){const c=S.calc;const bmr=10*c.w+6.25*c.h-5*c.age+(c.sex==='m'?5:-161);
+ const adj={lose:0.85,keep:1,gain:1.1}[c.goal];const kcal=Math.round(bmr*c.act*adj/50)*50;
+ const b=Math.round(c.w*(c.goal==='keep'?1.4:1.8)/5)*5;const t=Math.round(kcal*0.28/9/5)*5;const sch=Math.max(50,Math.round((kcal-b*4-t*9)/4/5)*5);
+ return {kcal,b,s:sch,t}}
+function calcPanel(){const c=S.calc,r=calcNut();
+ const ch=(key,opts)=>`<div class="chips">${opts.map(([v,l])=>`<button class="chip ${c[key]==v?'sel':''}" data-calc="${key}" data-v="${v}">${l}</button>`).join('')}</div>`;
+ return `<div class="card" style="margin-top:12px;background:#FFFCF8;box-shadow:none;border:1.5px solid var(--line)">
+  <div class="grid2"><div><label class="lbl">Pohlavie</label>${ch('sex',[['m','👨 Muž'],['f','👩 Žena']])}</div>
+  <div><label class="lbl">Cieľ</label>${ch('goal',[['lose','📉 Schudnúť'],['keep','⚖️ Udržať'],['gain','💪 Nabrať svaly']])}</div></div>
+  <div class="nutin" style="margin-top:12px">${[['age','Vek','rokov'],['w','Váha','kg'],['h','Výška','cm']].map(([k,l,u])=>`<label class="nbox"><span>${l}</span><div><input type="number" inputmode="numeric" class="txt" data-cin="${k}" value="${c[k]}"><em>${u}</em></div></label>`).join('')}</div>
+  <label class="lbl" style="margin-top:12px">Aktivita</label>${ch('act',[[1.2,'🪑 Sedavá'],[1.375,'🚶 Ľahká (1–3× šport)'],[1.55,'🏃 Stredná (3–5×)'],[1.725,'🏋️ Vysoká (6–7×)']])}
+  <div class="notice ok" style="margin:12px 0 8px" id="calcRes">Odporúčanie: <b>${r.kcal} kcal</b> · ${r.b} g bielkovín · ${r.s} g sacharidov · ${r.t} g tukov</div>
+  <button class="btn small" id="calcUse">Použiť tieto hodnoty</button>
+  <p class="muted" style="font-size:12px;margin:8px 0 0">Výpočet podľa Mifflin–St Jeor (bazálny metabolizmus × aktivita). Je to orientačný odhad, nie lekárske odporúčanie.</p></div>`}
 function setup(){
  const perDay=S.budget/S.days/S.persons;
  return `<div class="fadein"><div class="prog"><i style="width:8%"></i></div>
@@ -582,8 +615,15 @@ function setup(){
     <button data-var="mid" class="${S.variety==='mid'?'sel':''}"><b>⚖️ Vyvážene</b><small>Každé jedlo najviac 2 dni po sebe.</small></button>
     <button data-var="vary" class="${S.variety==='vary'?'sel':''}"><b>🌈 Pestro</b><small>Každý deň niečo iné (drahšie a viac varenia).</small></button>
    </div></div>
-  <div class="field"><label>Tvoj cieľ</label>
-   <div class="chips">${[['normal','🍽️ Bežné stravovanie'],['protein','💪 Viac bielkovín'],['light','🪶 Ľahšie jedlá (menej kcal)']].map(([v,l])=>`<button class="chip ${S.goal===v?'sel':''}" data-goal="${v}">${l}</button>`).join('')}</div></div>
+  <div class="field"><label>🎯 Denný príjem na osobu</label>
+   <button class="switch ${S.nut.on?'on':''}" id="nutOn" style="margin-bottom:10px"><span class="k"></span><span><b>Prispôsobiť jedlá a porcie môjmu príjmu</b><br><small class="muted">veľkosť porcií sa upraví podľa kalórií, výber jedál podľa bielkovín, sacharidov a tukov</small></span></button>
+   ${S.nut.on?`<div class="nutin">
+    ${[['kcal','Kalórie','kcal',800,5000,50],['b','Bielkoviny','g',20,350,5],['s','Sacharidy','g',30,700,5],['t','Tuky','g',20,250,5]].map(([k,l,u,mn,mx,st])=>`<label class="nbox"><span>${l}</span><div><input type="number" inputmode="numeric" class="txt" data-nut="${k}" min="${mn}" max="${mx}" step="${st}" value="${S.nut[k]}"><em>${u}</em></div></label>`).join('')}
+   </div>
+   <div class="hint" id="nutHint">${nutHint()}</div>
+   <div class="row" style="margin-top:10px"><button class="btn ghost small" id="calcBtn">🧮 ${V.calcOpen?'Skryť kalkulačku':'Neviem – vypočítaj mi to'}</button><button class="btn ghost small" id="macroBtn">⚖️ Dopočítať makrá z kalórií</button></div>
+   ${V.calcOpen?calcPanel():''}`:''}
+  </div>
   <button class="switch ${S.pult?'on':''}" id="pult" style="margin-bottom:10px"><span class="k"></span><span><b>Mäso, údeniny a syr môžem kúpiť aj pri pulte</b><br><small class="muted">kúpiš presne toľko gramov, koľko treba – menej zvyškov (Kaufland, Tesco, Billa; Lidl pult nemá)</small></span></button>
   <button class="switch ${S.pantry?'on':''}" id="pantry"><span class="k"></span><span><b>Základné suroviny mám doma</b><br><small class="muted">olej, soľ, korenie, múka, cukor, bujón, ocot – nebudú v nákupe ani v cene</small></span></button>
  </div>
@@ -620,7 +660,7 @@ function loading(){
 function dayLabel(i){const d=new Date(S.start+'T12:00:00');d.setDate(d.getDate()+i);const n=['Nedeľa','Pondelok','Utorok','Streda','Štvrtok','Piatok','Sobota'][d.getDay()];return {n,dt:d.getDate()+'. '+(d.getMonth()+1)+'.'}}
 function dayGen(i){const d=new Date(S.start+'T12:00:00');d.setDate(d.getDate()+i);return ['nedele','pondelka','utorka','stredy','štvrtka','piatka','soboty'][d.getDay()]}
 function blockAt(m,day){return (V.plan[m]||[]).findIndex(b=>day>=b.start&&day<b.start+b.len)}
-function dayNut(day){const o={kcal:0,b:0,s:0,t:0};for(const m in V.plan){const j=blockAt(m,day);if(j<0)continue;const n=RB[V.plan[m][j].rid].nut;for(const k in o)o[k]+=n[k]}return o}
+function dayNut(day){const o={kcal:0,b:0,s:0,t:0};for(const m in V.plan){const j=blockAt(m,day);if(j<0)continue;const n=nutP(RB[V.plan[m][j].rid],m);for(const k in o)o[k]+=n[k]}return o}
 
 function result(){
  if(!V.plan)return `<div class="card fadein">${V.warn.map(w=>`<div class="notice ${w[0]}">${w[1]}</div>`).join('')||'<p>Zatiaľ nemáš žiadny plán.</p>'}<button class="btn" data-go="setup">Upraviť zadanie</button></div>`;
@@ -680,16 +720,17 @@ function tabShop(){
 
 function tabRec(){
  const list=[];for(const m of ['b','l','d'])(V.plan[m]||[]).forEach((bl,j)=>list.push({m,j,bl,r:RB[bl.rid]}));
- return `<div class="rgrid">${list.map(x=>`<div class="rcard" data-rec="${x.r.id}" data-m="${x.m}" data-j="${x.j}"><div class="ph" style="background:${grad(x.r.id)}">${x.r.e}<small>${MEALS[x.m].e} ${MEALS[x.m].n} · ${x.bl.len} ${x.bl.len===1?'deň':x.bl.len<5?'dni':'dní'}</small></div><div class="bd"><b>${esc(x.r.n)}</b><span>⏱ ${x.r.t} min · ${Math.round(x.r.nut.kcal)} kcal/porcia</span></div></div>`).join('')}</div>`}
+ return `<div class="rgrid">${list.map(x=>`<div class="rcard" data-rec="${x.r.id}" data-m="${x.m}" data-j="${x.j}"><div class="ph" style="background:${grad(x.r.id)}">${x.r.e}<small>${MEALS[x.m].e} ${MEALS[x.m].n} · ${x.bl.len} ${x.bl.len===1?'deň':x.bl.len<5?'dni':'dní'}</small></div><div class="bd"><b>${esc(x.r.n)}</b><span>⏱ ${x.r.t} min · ${Math.round(nutP(x.r,x.m).kcal)} kcal/porcia${pf(x.r,x.m)!==1?' ('+fmtF(pf(x.r,x.m))+')':''}</span></div></div>`).join('')}</div>`}
 
 function tabNut(){
- const RI={kcal:2000,b:50,s:260,t:70};
+ const on=S.nut&&S.nut.on;const shareSum=S.meals.reduce((a,m)=>a+(SHARE[m]||0),0);
+ const RI=on?{kcal:S.nut.kcal*shareSum,b:S.nut.b*shareSum,s:S.nut.s*shareSum,t:S.nut.t*shareSum}:{kcal:2000,b:50,s:260,t:70};
  let rows='',tot={kcal:0,b:0,s:0,t:0};
  for(let i=0;i<S.days;i++){const n=dayNut(i);for(const k in tot)tot[k]+=n[k];rows+=`<tr><td>${dayLabel(i).n.slice(0,2)} ${dayLabel(i).dt}</td><td>${Math.round(n.kcal)}</td><td>${Math.round(n.b)}</td><td>${Math.round(n.s)}</td><td>${Math.round(n.t)}</td></tr>`}
  const avg={};for(const k in tot)avg[k]=tot[k]/S.days;
- const bar=(k,l,u)=>{const p=avg[k]/RI[k]*100;return `<div style="margin-bottom:12px"><div class="row"><b>${l}</b><span class="spacer"></span><span>${Math.round(avg[k])} ${u} <span class="muted">/ ${RI[k]} ${u} (${Math.round(p)} %)</span></span></div><div class="bar"><i style="width:${Math.min(100,p)}%;background:${p>115?'var(--warn)':'var(--ok)'}"></i></div></div>`};
+ const bar=(k,l,u)=>{const p=avg[k]/RI[k]*100;return `<div style="margin-bottom:12px"><div class="row"><b>${l}</b><span class="spacer"></span><span>${Math.round(avg[k])} ${u} <span class="muted">/ ${Math.round(RI[k])} ${u} (${Math.round(p)} %)</span></span></div><div class="bar"><i style="width:${Math.min(100,p)}%;background:${p>115||p<85?'var(--warn)':'var(--ok)'}"></i></div></div>`};
  const missing=['b','l','d'].filter(m=>!S.meals.includes(m)).map(m=>MEALS[m].n.toLowerCase());
- return `<div class="card" style="margin-bottom:12px"><h3 style="margin-bottom:4px">Priemerný deň (na osobu)</h3><p class="muted" style="margin-top:0;font-size:14px">Porovnanie s referenčným príjmom pre dospelého (EÚ, 2000 kcal).${missing.length?` Plán nepočíta ${missing.join(' a ')} – reálny príjem bude vyšší.`:''}</p>
+ return `<div class="card" style="margin-bottom:12px"><h3 style="margin-bottom:4px">Priemerný deň (na osobu)</h3><p class="muted" style="margin-top:0;font-size:14px">${on?`Porovnanie s tvojím denným cieľom (${S.nut.kcal} kcal · ${S.nut.b} g B · ${S.nut.s} g S · ${S.nut.t} g T)${missing.length?`, len za jedlá v pláne – ${missing.join(' a ')} nepočítam (${Math.round(shareSum*100)} % cieľa)`:''}. Porcie sú upravené tak, aby raňajky boli ~25 %, obed ~40 % a večera ~35 % denného príjmu.`:`Porovnanie s referenčným príjmom pre dospelého (EÚ, 2000 kcal).${missing.length?` Plán nepočíta ${missing.join(' a ')} – reálny príjem bude vyšší.`:''}`}</p>
  ${bar('kcal','Energia','kcal')}${bar('b','Bielkoviny','g')}${bar('s','Sacharidy','g')}${bar('t','Tuky','g')}</div>
  <div class="card"><table class="nt"><thead><tr><th>Deň</th><th>kcal</th><th>Bielk. g</th><th>Sach. g</th><th>Tuky g</th></tr></thead><tbody>${rows}</tbody></table></div>`}
 
@@ -705,10 +746,10 @@ function catCards(list){return list.map(r=>`<div class="rcard" data-rec="${r.id}
 /* ---------- modals ---------- */
 function openRecipe(id,m,j){
  const r=RB[id];const bl=(m&&V.plan&&V.plan[m])?V.plan[m][j]:null;
- let por=bl?(m==='l'?bl.len*S.persons:S.persons):1;
+ let por=bl?(m==='l'?bl.len*S.persons:S.persons):1;const F=bl?pf(r,m):1;
  const tagN={sladke:'sladké',slane:'slané',teple:'teplé',studene:'studené',sk:'🏡 slovenská klasika',svet:'🌍 svetová kuchyňa',pikant:'🌶️ pikantné',lahke:'ľahké',syte:'sýte'};
  const draw=()=>{
-  const n=r.nut;
+  const n=bl?nutP(r,m):r.nut;
   $('#modal').innerHTML=`<div class="ov" id="ov"><div class="modal">
   <div class="mhero" style="background:${grad(r.id)}">${r.e}<button class="mclose" id="mclose">✕</button></div>
   <div class="mbody"><h2>${esc(r.n)}</h2>
@@ -716,10 +757,10 @@ function openRecipe(id,m,j){
    ${bl&&m==='l'&&bl.len>1?`<div class="notice ok">🔪 Toto jedlo uvaríš naraz na ${bl.len} dni. Porcie rozdeľ do krabičiek a daj do chladničky.</div>`:''}
    ${bl&&m!=='l'&&bl.len>1?`<div class="notice ok">🔁 Toto budeš mať ${bl.len} dni po sebe – pripravuj vždy čerstvé (množstvá nižšie sú na 1 deň).</div>`:''}
    <div class="nutr"><div><b>${Math.round(n.kcal)}</b><span>kcal</span></div><div><b>${Math.round(n.b)} g</b><span>bielkoviny</span></div><div><b>${Math.round(n.s)} g</b><span>sacharidy</span></div><div><b>${Math.round(n.t)} g</b><span>tuky</span></div></div>
-   <p class="muted" style="font-size:13px;margin:6px 0 0">Na 1 porciu · surovinová cena ≈ ${eur(r.ing.reduce((s,[k,q])=>s+unitP(k,S.chain)*q,0))} (${CHAINS[S.chain].n})</p>
+   <p class="muted" style="font-size:13px;margin:6px 0 0">Na 1 porciu${F!==1?` – <b>${F>1?'väčšia':'menšia'} porcia (${fmtF(F)} základného receptu)</b> podľa tvojho denného príjmu`:''} · surovinová cena ≈ ${eur(r.ing.reduce((s,[k,q])=>s+unitP(k,S.chain)*q*F,0))} (${CHAINS[S.chain].n})</p>
    <div class="row" style="margin-top:18px"><h3 class="mh3" style="margin:0">Suroviny</h3><span class="spacer"></span>
     <button class="step" id="pm" style="width:36px;height:36px">−</button><b style="min-width:92px;text-align:center">${por} ${por===1?'porcia':por<5?'porcie':'porcií'}</b><button class="step" id="pp" style="width:36px;height:36px">+</button></div>
-   <ul class="ingl" style="margin-top:8px">${r.ing.map(([k,q])=>`<li><span>${esc(I[k].n)}</span><b>${fmtQ(k,q*por)}</b></li>`).join('')}</ul>
+   <ul class="ingl" style="margin-top:8px">${r.ing.map(([k,q])=>`<li><span>${esc(I[k].n)}</span><b>${fmtQ(k,q*por*F)}</b></li>`).join('')}</ul>
    <h3 class="mh3">Postup</h3><ol class="steps">${r.s.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>
   </div></div></div>`;
   $('#mclose').onclick=closeM;$('#ov').onclick=e=>{if(e.target.id==='ov')closeM()};
@@ -734,7 +775,7 @@ function openSwap(m,j){
  $('#modal').innerHTML=`<div class="ov" id="ov"><div class="modal"><div class="mbody">
   <div class="row"><h2 style="font-size:22px">Vymeniť ${MEALS[m].n.toLowerCase()} (${bl.len} ${bl.len===1?'deň':bl.len<5?'dni':'dní'})</h2><span class="spacer"></span><button class="iconbtn" id="mclose">✕</button></div>
   <p class="muted">Pri každom jedle vidíš, ako sa zmení cena celého nákupu. Najvyššie sú tie, ktoré sedia na tvoje odpovede.</p>
-  ${list.map(x=>{const d=x.cost-cur;return `<div class="alt ${x.r.id===bl.rid?'cur':''}" data-pick="${x.r.id}"><div class="thumb" style="background:${grad(x.r.id)};width:46px;height:46px;font-size:24px">${x.r.e}</div><div style="flex:1;min-width:0"><b>${esc(x.r.n)}</b><div class="muted" style="font-size:13px">${x.mis?'⚠️ nesedí na všetky odpovede · ':'✅ sedí na tvoje odpovede · '}${Math.round(x.r.nut.kcal)} kcal</div></div><span class="delta ${d>0.004?'up':d<-0.004?'down':''}">${x.r.id===bl.rid?'aktuálne':Math.abs(d)<0.005?'± 0 €':(d>0?'+':'−')+eur(Math.abs(d))}</span></div>`}).join('')}
+  ${list.map(x=>{const d=x.cost-cur;return `<div class="alt ${x.r.id===bl.rid?'cur':''}" data-pick="${x.r.id}"><div class="thumb" style="background:${grad(x.r.id)};width:46px;height:46px;font-size:24px">${x.r.e}</div><div style="flex:1;min-width:0"><b>${esc(x.r.n)}</b><div class="muted" style="font-size:13px">${x.mis?'⚠️ nesedí na všetky odpovede · ':'✅ sedí na tvoje odpovede · '}${Math.round(nutP(x.r,m).kcal)} kcal</div></div><span class="delta ${d>0.004?'up':d<-0.004?'down':''}">${x.r.id===bl.rid?'aktuálne':Math.abs(d)<0.005?'± 0 €':(d>0?'+':'−')+eur(Math.abs(d))}</span></div>`}).join('')}
  </div></div></div>`;
  $('#mclose').onclick=closeM;$('#ov').onclick=e=>{if(e.target.id==='ov')closeM()};
  document.querySelectorAll('[data-pick]').forEach(el=>el.onclick=()=>{bl.rid=el.dataset.pick;bl.locked=true;pickChain();V.warn=V.warn.filter(w=>w[0]!=='bad'||!w[1].startsWith('Za '));if(V.cost.total>S.budget)V.warn.push(['bad',`Po výmene je nákup ${eur(V.cost.total)} – o ${eur(V.cost.total-S.budget)} nad rozpočtom.`]);closeM();render()});
@@ -752,7 +793,13 @@ function bind(){
   on('[data-p]',el=>{S.persons=Math.max(1,Math.min(6,S.persons+ +el.dataset.p));save();render()});
   on('[data-meal]',el=>{const k=el.dataset.meal;S.meals=S.meals.includes(k)?S.meals.filter(x=>x!==k):[...S.meals,k].sort((a,b)=>'bld'.indexOf(a)-'bld'.indexOf(b));save();render()});
   on('[data-var]',el=>{S.variety=el.dataset.var;save();render()});
-  on('[data-goal]',el=>{S.goal=el.dataset.goal;save();render()});
+  on('#nutOn',()=>{S.nut.on=!S.nut.on;PFC.clear();save();render()});
+  document.querySelectorAll('[data-nut]').forEach(el=>{el.oninput=()=>{const v=+el.value;if(v>0){S.nut[el.dataset.nut]=v;PFC.clear();const h=$('#nutHint');if(h)h.innerHTML=nutHint()}};el.onchange=()=>save()});
+  const cb=$('#calcBtn');if(cb)cb.onclick=()=>{V.calcOpen=!V.calcOpen;render()};
+  const mb=$('#macroBtn');if(mb)mb.onclick=()=>{const w=S.calc.w||75;S.nut.b=Math.round(Math.min(w*1.6,S.nut.kcal*0.3/4)/5)*5;S.nut.t=Math.round(S.nut.kcal*0.28/9/5)*5;S.nut.s=Math.max(50,Math.round((S.nut.kcal-S.nut.b*4-S.nut.t*9)/4/5)*5);PFC.clear();save();render()};
+  on('[data-calc]',el=>{const k=el.dataset.calc,v=el.dataset.v;S.calc[k]=isNaN(+v)?v:+v;save();render()});
+  document.querySelectorAll('[data-cin]').forEach(el=>{el.oninput=()=>{const v=+el.value;if(v>0){S.calc[el.dataset.cin]=v;const r=calcNut();const cr=$('#calcRes');if(cr)cr.innerHTML=`Odporúčanie: <b>${r.kcal} kcal</b> · ${r.b} g bielkovín · ${r.s} g sacharidov · ${r.t} g tukov`}};el.onchange=()=>save()});
+  const cu=$('#calcUse');if(cu)cu.onclick=()=>{Object.assign(S.nut,calcNut());PFC.clear();V.calcOpen=false;save();render()};
   on('#pantry',()=>{S.pantry=!S.pantry;save();render()});on('#pult',()=>{S.pult=!S.pult;save();render()});
   $('#start').onchange=e=>{S.start=e.target.value||DEF.start;save()};
  }
