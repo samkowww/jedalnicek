@@ -1,28 +1,21 @@
 {
- "updated": "2026-11-18T19:23:18.377Z",
+ "updated": "2026-11-18T19:32:57.951Z",
  "sources": {
+  "T": {
+   "ok": false,
+   "note": "Tesco blokuje prístup zo serverov GitHubu"
+  },
+  "K": {
+   "ok": false,
+   "note": "Kaufland blokuje prístup zo serverov GitHubu"
+  },
   "B": {
    "ok": false,
    "note": "Billa zverejňuje akcie len v obrázkových letákoch"
   },
-  "T": {
-   "ok": false,
-   "pages": 74,
-   "products": 0
-  },
-  "K": {
-   "ok": false,
-   "tiles": 0,
-   "status": [
-    403,
-    403
-   ]
-  },
   "L": {
    "ok": false,
-   "pages": 0,
-   "tiles": 0,
-   "links": 0
+   "error": "Cannot read properties of null (reading 'category')"
   }
  },
  "offers": []
