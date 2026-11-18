@@ -1,6 +1,6 @@
 // Offline cache – pri zmene aplikácie zvýš číslo verzie
-const CACHE = 'jedalnicek-v7';
-const CORE = ['./', './index.html', './recepty.js', './recepty2.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'jedalnicek-v8';
+const CORE = ['./', './index.html', './recepty.js', './recepty2.js', './polievky.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
