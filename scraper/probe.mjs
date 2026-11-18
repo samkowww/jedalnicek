@@ -1,21 +1,18 @@
-// Diagnostika: skúsi stránky obchodov cez fetch aj cez skutočný prehliadač (Playwright) a vypíše výsledok.
-import { chromium } from 'playwright';
-const URLS = [
-  'https://potravinydomov.itesco.sk/groceries/sk-SK/search?query=kuracie%20prsia&count=48',
-  'https://www.kaufland.sk/ponuka/aktualny-tyzden/prehlad.html',
-  'https://www.lidl.sk/',
-];
-for (const u of URLS) {
-  try { const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'Accept-Language': 'sk-SK' } });
-    const t = await r.text(); console.log('FETCH', r.status, u, '|', t.slice(0, 300).replace(/\s+/g, ' ')); }
-  catch (e) { console.log('FETCH ERR', u, e.cause?.code || e.message); }
+// Diagnostika Lidl: nájde stránky s akciovým jedlom a vypíše, aké dáta obsahujú.
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+const get = async u => { const r = await fetch(u, { headers: { 'User-Agent': UA, 'Accept-Language': 'sk-SK' } }); return { s: r.status, t: await r.text() }; };
+const home = await get('https://www.lidl.sk/');
+console.log('HOME', home.s, home.t.length);
+const links = [...new Set([...home.t.matchAll(/href="(\/[a-z]\/[^"#?]+)"/g)].map(m => m[1]))];
+console.log('LINKS', links.length);
+for (const l of links) if (/akci|ponuk|zlav|letak|jedlo|potrav|tyzd|pondel|stvrt|lidl-plus|cena/i.test(l)) console.log('  L', l);
+const dec = s => s.replace(/&quot;/g, '"').replace(/&#34;/g, '"').replace(/&amp;/g, '&');
+const cand = links.filter(l => /akci|ponuk|zlav|jedlo|potrav|tyzd|pondel|stvrt/i.test(l)).slice(0, 12);
+for (const l of cand) {
+  try { const r = await get('https://www.lidl.sk' + l); const g = [...r.t.matchAll(/data-grid-data="([^"]+)"/g)];
+    console.log('PAGE', r.s, l, 'grid:', g.length);
+    for (const m of g.slice(0, 3)) { try { const d = JSON.parse(dec(m[1])); console.log('   ', JSON.stringify({ t: d.fullTitle, cat: d.category, price: d.price, lp: d.lidlPlus, badges: d.stockAvailability, ribbons: d.ribbons }).slice(0, 700)); } catch (e) { console.log('   parse err'); } }
+    if (!g.length) { const n = r.t.match(/data-[a-z-]*="\{&quot;[^"]{0,300}/); console.log('    other data:', n ? n[0].slice(0, 300) : '-'); }
+  } catch (e) { console.log('PAGE ERR', l, e.cause?.code || e.message); }
+  await new Promise(r => setTimeout(r, 1200));
 }
-const b = await chromium.launch();
-const ctx = await b.newContext({ locale: 'sk-SK', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' });
-const p = await ctx.newPage();
-for (const u of URLS) {
-  try { const r = await p.goto(u, { waitUntil: 'domcontentloaded', timeout: 45000 }); await p.waitForTimeout(4000);
-    const html = await p.content(); console.log('BROWSER', r && r.status(), u, '| title:', await p.title(), '| len', html.length, '|', (await p.innerText('body')).slice(0, 300).replace(/\s+/g, ' ')); }
-  catch (e) { console.log('BROWSER ERR', u, e.message.slice(0, 200)); }
-}
-await b.close();

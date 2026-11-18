@@ -8,5 +8,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
-      - run: npm i --no-save playwright@1.48 && npx playwright install --with-deps chromium
-      - run: node scraper/probe.mjs
+      - run: node --max-http-header-size=131072 scraper/probe.mjs
