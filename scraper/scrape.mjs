@@ -173,6 +173,7 @@ async function lidl(log) {
     for (const mm of r.text.matchAll(/href="(\/[ch]\/[^"#?]+)"/g)) { const u = 'https://www.lidl.sk' + mm[1]; if (want(mm[1]) && !seenPages.has(u)) queue.push(u); }
     for (const mm of r.text.matchAll(/data-grid-data="([^"]+)"/g)) {
       let d; try { d = JSON.parse(decodeEntities(mm[1])); } catch { continue; }
+      if (!d || typeof d !== 'object') continue;
       if (!/^food$|potravin|jedlo/i.test(String(d.category || ''))) continue;
       const key = d.productId || d.erpNumber || d.fullTitle;
       if (!items.has(key)) items.set(key, d);
