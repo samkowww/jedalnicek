@@ -1,0 +1,50 @@
+name: Aktualizácia zliav
+
+on:
+  schedule:
+    - cron: '30 4 * * 1'   # pondelok ráno (nové letáky)
+    - cron: '30 4 * * 4'   # štvrtok ráno (Lidl, Kaufland – nová ponuka)
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Uložiť surové stránky na ladenie (1 = áno)'
+        default: '0'
+      only:
+        description: 'Len vybrané zdroje, napr. T,K,L (prázdne = všetky)'
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zlavy
+  cancel-in-progress: false
+
+jobs:
+  zlavy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Zber zliav
+        env:
+          DEBUG: ${{ github.event.inputs.debug || '0' }}
+          ONLY: ${{ github.event.inputs.only || '' }}
+        run: node scraper/scrape.mjs
+      - name: Ladiace súbory
+        if: ${{ github.event.inputs.debug == '1' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug
+          path: debug/
+          retention-days: 3
+      - name: Uložiť zlavy.json
+        run: |
+          git config user.name "jedalnicek-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add zlavy.json
+          git diff --cached --quiet || git commit -m "Zľavy: aktualizácia $(date +%Y-%m-%d)"
+          git push
