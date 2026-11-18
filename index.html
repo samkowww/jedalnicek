@@ -398,7 +398,7 @@ const Q=[
 ];
 
 /* ---------- state ---------- */
-const DEF={chain:'L',pult:true,cards:[],budget:35,days:7,persons:1,meals:['b','l','d'],pantry:true,variety:'save',goal:'normal',start:new Date().toISOString().slice(0,10),excl:[],exclText:'',ans:{}};
+const DEF={chain:'L',pult:true,budget:35,days:7,persons:1,meals:['b','l','d'],pantry:true,variety:'save',goal:'normal',start:new Date().toISOString().slice(0,10),excl:[],exclText:'',ans:{}};
 let S=load()||JSON.parse(JSON.stringify(DEF));
 let V={screen:'home',qi:0,tab:'plan',plan:null,cost:null,warn:[],checked:{}};
 function save(){try{localStorage.setItem('jedalnicek_v1',JSON.stringify(S))}catch(e){}}
@@ -453,18 +453,7 @@ function candidates(m,relaxed){
 function maxRep(m){return S.variety==='save'?MEALS[m].max:S.variety==='mid'?2:1}
 function blockSizes(m){const Y=S.days,mx=maxRep(m),n=Math.ceil(Y/mx),base=Math.floor(Y/n),rem=Y%n;return Array.from({length:n},(_,i)=>base+(i<rem?1:0))}
 
-/* ---------- zľavy (zlavy.json z GitHub pomocníka) ---------- */
-let PROMO={updated:null,sources:{},offers:[]};
-const CARDS={L:'Lidl Plus',K:'Kaufland Card',T:'Tesco Clubcard',B:'BILLA Club'};
-function promoFor(id,c){
- if(!PROMO.offers.length)return [];
- const d=S.start;
- return PROMO.offers.filter(o=>o.id===id&&o.ch===c&&(!o.from||o.from<=d)&&(!o.to||o.to>=d)&&(!o.card||(S.cards||[]).includes(c)))}
-function loadPromo(){
- try{fetch('zlavy.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(j=>{if(!j||!Array.isArray(j.offers))return;PROMO=j;BUYMEMO.clear();if(V.plan)V.cost=calcCost(V.plan);render()}).catch(()=>{})}catch(e){}}
-function sDate(iso){if(!iso)return '';const d=new Date(iso+'T12:00:00');return d.getDate()+'. '+(d.getMonth()+1)+'.'}
-
-/* ---------- nákup: výber balení / kusov / pultu / akcií ---------- */
+/* ---------- nákup: výber balení / kusov / pultu ---------- */
 const BUYMEMO=new Map();
 function buyRegular(id,q,c){
  const g=I[id],f=fac(g,c),per=PERISH[g.c];let best=null;
@@ -481,41 +470,19 @@ function buyRegular(id,q,c){
  if(g.pr.pt&&c!=='L'&&S.pult){const amt=Math.max(100,Math.ceil(q/50)*50);consider({mode:'pult',amt,cost:amt/1000*g.pr.pt*f})}
  return best}
 function buy(id,q,c){
- const key=id+'|'+c+'|'+Math.ceil(q)+'|'+(S.pult?1:0)+'|'+S.start+'|'+(S.cards||[]).join('');if(BUYMEMO.has(key))return BUYMEMO.get(key);
- const g=I[id],per=PERISH[g.c];
- const reg=buyRegular(id,q,c);let best={...reg,regCost:reg.cost,save:0};
- for(const o of promoFor(id,c)){
-  const price=o.card&&o.cardPrice!=null?o.cardPrice:o.price;
-  if(o.perKg){ // na váhu v akcii
-   const pc=g.pr.l?g.pr.l[0]:50;const n=Math.max(1,Math.ceil(q/pc-1e-9));const amt=n*pc;const cost=amt/1000*o.perKg;
-   const left=amt-q,wasteV=left*(cost/amt)*per,score=cost+0.6*wasteV;
-   if(score<best.score-1e-9)best={mode:'promo',promo:o,n,size:pc,loose:true,amt,cost,left,wasteV,score,regCost:reg.cost,save:Math.max(0,reg.cost-cost)};
-   continue}
-  if(!o.size)continue;
-  const mx=Math.max(1,Math.ceil(q/o.size-1e-9));
-  for(let n=1;n<=mx;n++){
-   const rem=q-n*o.size;const rest=rem>0?buyRegular(id,rem,c):null;
-   const amt=n*o.size+(rest?rest.amt:0),cost=n*price+(rest?rest.cost:0);
-   const left=amt-q,wasteV=left>0?left*(cost/amt)*per:0,score=cost+0.6*wasteV;
-   if(score<best.score-1e-9)best={mode:'promo',promo:o,n,size:o.size,rest,amt,cost,left,wasteV,score,regCost:reg.cost,save:Math.max(0,reg.cost-cost)};
-  }
- }
- BUYMEMO.set(key,best);return best}
+ const key=id+'|'+c+'|'+Math.ceil(q)+'|'+(S.pult?1:0);if(BUYMEMO.has(key))return BUYMEMO.get(key);
+ const o=buyRegular(id,q,c);BUYMEMO.set(key,o);return o}
 function calcCost(plan,c){
  c=c||S.chain;const need={};
  for(const m in plan)for(const bl of plan[m]){const r=RB[bl.rid];for(const [k,q] of r.ing)need[k]=(need[k]||0)+q*S.persons*bl.len}
- let total=0,waste=0,save=0;const items=[],pantry=[];
+ let total=0,waste=0;const items=[],pantry=[];
  for(const k in need){const g=I[k],q=need[k];
   if(g.pan&&S.pantry){pantry.push({k,q});continue}
-  const o=buy(k,q,c);total+=o.cost;waste+=o.wasteV;save+=o.save||0;items.push({k,q,...o,c:o.cost})}
- return {total,waste,save,items,pantry}}
+  const o=buy(k,q,c);total+=o.cost;waste+=o.wasteV;items.push({k,q,...o,c:o.cost})}
+ return {total,waste,items,pantry}}
 function quickCost(plan){return calcCost(plan)}
 function sizeTxt(g,s){const u=g.u==='ks'?' ks':g.u==='ml'?' ml':' g';return s>=1000&&g.u!=='ks'?(s/1000+'').replace('.',',')+(g.u==='ml'?' l':' kg'):s+u}
 function buyTxt(g,o){
- if(o.mode==='promo'){const p=o.promo;
-  let t=o.loose?`🏷️ AKCIA ${o.n} ${PCS[g.id]?PCS[g.id][1]:'ks'} (≈ ${Math.round(o.amt)} g)`:`🏷️ AKCIA ${o.n} × ${sizeTxt(g,o.size)}`;
-  if(o.rest&&o.rest.mode!=='none')t+=' + '+buyTxt(g,o.rest).replace(/^\S+ /,'');
-  return t+` · ${esc(p.name)}${p.to?' · do '+sDate(p.to):''}${p.card?' · s kartou '+CARDS[p.ch]:''}`}
  if(o.mode==='pack')return '📦 '+o.cnt.map(([s,n])=>`${n} × ${sizeTxt(g,s)}`).join(' + ');
  if(o.mode==='loose'){const pn=PCS[g.id]?PCS[g.id][1]:'ks';return `🧺 ${o.n} ${pn} (≈ ${Math.round(o.amt)} g, na váhu)`}
  return `🔪 ${o.amt} g pri pulte`}
@@ -547,12 +514,14 @@ function optimize(relaxed,keep){
   }
   if(!ok)break;
   const qc=quickCost(plan),cost=qc.total;
-  const obj=cost<=S.budget?pref*1.5-cost*0.4-qc.waste*1.0+qc.save*1.5:-10000-(cost-S.budget)*100+pref*0.01;
+  const obj=cost<=S.budget?pref*1.5-cost*0.4-qc.waste*1.0:-10000-(cost-S.budget)*100+pref*0.01;
   if(!best||obj>best.obj)best={plan,cost,obj,pref};
  }
  return best}
 
+function pickChain(){let best=null;for(const k of Object.keys(CHAINS)){const c=calcCost(V.plan,k);if(!best||c.total<best.c.total)best={k,c}}S.chain=best.k;V.cost=best.c}
 function generate(keepLocks){
+ S.chain='L';
  V.warn=[];
  const keep=keepLocks&&V.plan?V.plan:null;
  const empty=S.meals.filter(m=>!candidates(m,true).length);
@@ -562,7 +531,7 @@ function generate(keepLocks){
  if(res&&res.cost>S.budget){const r2=optimize(true,keep);if(r2&&r2.cost<=S.budget){res=r2;V.warn.push(['warn','Aby sa plán zmestil do rozpočtu, niektoré jedlá úplne nesedia na všetky tvoje odpovede. Môžeš ich vymeniť tlačidlom 🔄.'])}else if(r2&&r2.cost<res.cost)res=r2}
  S.meals=origMeals;
  if(!res){V.plan=null;V.cost=null;return}
- V.plan=res.plan;V.cost=calcCost(res.plan);
+ V.plan=res.plan;pickChain();
  if(V.cost.total>S.budget)V.warn.push(['bad',`Za ${eur(S.budget)} sa to nedá – najlacnejší plán, ktorý som našiel, stojí ${eur(V.cost.total)}. Zvýš rozpočet, skráť počet dní alebo v nastaveniach zvoľ „Šetriť“ (viac opakovaní).`]);
 }
 
@@ -572,11 +541,6 @@ function generate(keepLocks){
 function render(){const a=$('#app');a.innerHTML=topBar()+({home,setup,excl:exclScreen,q:qScreen,loading,result,catalog}[V.screen])();bind();window.scrollTo({top:0})}
 function topBar(){return `<div class="topbar"><div class="logo" data-go="home"><span class="b">🛒</span>Nákupný jedálniček</div>${V.screen!=='catalog'?`<button class="btn ghost small" data-go="catalog">📖 Recepty</button>`:''}</div>`}
 
-function promoStatus(){
- if(!PROMO.updated)return '';
- const days=Math.round((Date.now()-new Date(PROMO.updated).getTime())/864e5);
- const src=Object.entries(PROMO.sources||{}).map(([k,v])=>`${CHAINS[k]?CHAINS[k].n:k} ${v.ok?'✓ '+v.count:'✗'}`).join(' · ');
- return `<div class="notice ${days>8?'warn':'ok'}" style="font-size:14px">🏷️ Zľavy aktualizované ${new Date(PROMO.updated).toLocaleDateString('sk-SK')}${days>8?' – sú staršie, môžu byť neplatné':''}. ${src}</div>`}
 function home(){
  const has=!!V.plan;
  return `<div class="hero fadein">
@@ -598,9 +562,6 @@ function setup(){
  return `<div class="fadein"><div class="prog"><i style="width:8%"></i></div>
  <div class="section-tag">Krok 1 · Nákup</div><h2 class="qtitle">Aký nákup plánuješ?</h2><p class="qsub">Základné parametre – všetko sa dá neskôr zmeniť.</p>
  <div class="card">
-  <div class="field"><label>Kde nakupuješ?</label>
-   <div class="chainpick">${Object.entries(CHAINS).map(([k,c])=>`<button class="chainbtn ${S.chain===k?'sel':''}" data-chain="${k}" style="--cc:${c.c}"><span class="dot"></span>${c.n}</button>`).join('')}</div>
-   <div class="hint">Ceny a veľkosti balení sa prepočítajú podľa obchodu. Na konci uvidíš porovnanie so všetkými štyrmi.</div></div>
   <div class="field"><label>Koľko chceš minúť?</label>
    <div class="big-num"><button class="step" data-b="-5">−</button><div class="v disp">${S.budget} €</div><button class="step" data-b="5">+</button></div>
    <input type="range" min="10" max="250" step="1" value="${S.budget}" id="budget">
@@ -624,8 +585,6 @@ function setup(){
   <div class="field"><label>Tvoj cieľ</label>
    <div class="chips">${[['normal','🍽️ Bežné stravovanie'],['protein','💪 Viac bielkovín'],['light','🪶 Ľahšie jedlá (menej kcal)']].map(([v,l])=>`<button class="chip ${S.goal===v?'sel':''}" data-goal="${v}">${l}</button>`).join('')}</div></div>
   <button class="switch ${S.pult?'on':''}" id="pult" style="margin-bottom:10px"><span class="k"></span><span><b>Mäso, údeniny a syr môžem kúpiť aj pri pulte</b><br><small class="muted">kúpiš presne toľko gramov, koľko treba – menej zvyškov (Kaufland, Tesco, Billa; Lidl pult nemá)</small></span></button>
-  <div class="field" style="margin-top:6px;margin-bottom:12px"><label>Aké vernostné karty máš? <span class="muted" style="font-weight:400">(akcie „len s kartou“)</span></label>
-   <div class="chips">${Object.entries(CARDS).map(([k,n])=>`<button class="chip ${(S.cards||[]).includes(k)?'sel':''}" data-card="${k}">💳 ${n}</button>`).join('')}</div></div>
   <button class="switch ${S.pantry?'on':''}" id="pantry"><span class="k"></span><span><b>Základné suroviny mám doma</b><br><small class="muted">olej, soľ, korenie, múka, cukor, bujón, ocot – nebudú v nákupe ani v cene</small></span></button>
  </div>
  <div class="navq"><button class="btn ghost" data-go="home">← Späť</button><button class="btn" data-go="excl" ${S.meals.length?'':'disabled'}>Ďalej →</button></div></div>`}
@@ -675,15 +634,15 @@ function result(){
  ${V.warn.map(w=>`<div class="notice ${w[0]}">${w[1]}</div>`).join('')}
  <div class="sumbar">
   <div class="stat"><div class="n" style="color:${over?'var(--bad)':'var(--ok)'}">${eur(c.total)}</div><div class="t">z rozpočtu ${eur(S.budget)}</div><div class="budgetbar"><i style="width:${pct}%;background:${over?'var(--bad)':'var(--ok)'}"></i></div></div>
-  <div class="stat"><div class="n">${over?'−'+eur(c.total-S.budget):eur(S.budget-c.total)}</div><div class="t">${over?'chýba':'ostane ti'}${c.save>0.01?` · <b style="color:var(--pri)">🏷️ akcie −${eur(c.save)}</b>`:''}</div></div>
+  <div class="stat"><div class="n">${over?'−'+eur(c.total-S.budget):eur(S.budget-c.total)}</div><div class="t">${over?'chýba':'ostane ti'}</div></div>
   <div class="stat"><div class="n" style="color:${c.waste>1.5?'var(--warn)':'var(--ok)'}">${eur(c.waste)}</div><div class="t">čerstvé zvyšky (${wasteItems.length} pol.)</div></div>
   <div class="stat"><div class="n">${Math.round(avg)}</div><div class="t">kcal denne (z plánu, na osobu)</div></div>
  </div>
- ${promoStatus()}<div class="card chaincmp"><div class="row" style="margin-bottom:8px"><b>Rovnaký nákup v iných obchodoch</b><span class="spacer"></span><span class="muted" style="font-size:13px">klikni a prepni</span></div>
-  <div class="cmpgrid">${cmp.map(x=>`<button class="cmpbtn ${x.k===S.chain?'sel':''}" data-chain2="${x.k}" style="--cc:${CHAINS[x.k].c}"><span class="dot"></span><b>${CHAINS[x.k].n}</b><span>${eur(x.t)}</span>${x.k===cheapest.k?'<em>najlacnejšie</em>':''}</button>`).join('')}</div></div>
+ <div class="card chaincmp"><div class="row" style="margin-bottom:8px"><b>Rovnaký nákup v obchodoch</b><span class="spacer"></span><span class="muted" style="font-size:13px">zoznam je pre ${CHAINS[S.chain].n}</span></div>
+  <div class="cmpgrid">${cmp.map(x=>`<div class="cmpbtn ${x.k===S.chain?'sel':''}" style="--cc:${CHAINS[x.k].c}"><span class="dot"></span><b>${CHAINS[x.k].n}</b><span>${eur(x.t)}</span>${x.k===cheapest.k?'<em>najlacnejšie</em>':''}</div>`).join('')}</div></div>
  <div class="tabs">${[['plan','📅 Plán'],['shop','🛒 Nákup'],['rec','📖 Recepty'],['nut','💪 Výživa']].map(([k,l])=>`<button class="${V.tab===k?'sel':''}" data-tab="${k}">${l}</button>`).join('')}</div>
  <div id="tabc">${({plan:tabPlan,shop:tabShop,rec:tabRec,nut:tabNut})[V.tab]()}</div>
- <p class="foot">Ceny sú bežné (nie akciové) ceny – Lidl, Kaufland a Tesco podľa štátneho porovnávača cenyslovensko.sk (7/2026) a Tesco online (11/2026); Billa je odhad. Akciové ceny dopĺňa raz týždenne automatický pomocník (súbor zlavy.json). Výživové hodnoty sú približné.</p></div>`}
+ <p class="foot">Ceny sú bežné (nie akciové) ceny – Lidl, Kaufland a Tesco podľa štátneho porovnávača cenyslovensko.sk (7/2026) a Tesco online (11/2026); Billa je odhad. Výživové hodnoty sú približné.</p></div>`}
 
 function tabPlan(){
  let h='';
@@ -695,7 +654,7 @@ function tabPlan(){
    if(m==='l'){badge=di===0?`<span class="badge cook">🔪 Uvar dnes ${bl.len>1?`na ${bl.len} dni (${bl.len*S.persons} porcií)`:''}</span>`:`<span class="badge left">♻️ Zvyšok z ${dayGen(bl.start)}</span>`}
    else badge=bl.len>1?`<span class="badge daily">${di===0?'🆕 Nové':'🔁 Ako včera'} · ${di+1}/${bl.len}</span>`:'';
    h+=`<div class="meal"><div class="thumb" style="background:${grad(r.id)}" data-rec="${r.id}" data-m="${m}" data-j="${j}">${r.e}</div>
-    <div class="info" data-rec="${r.id}" data-m="${m}" data-j="${j}"><div class="k">${MEALS[m].n}${r.ing.some(([k])=>V.cost.items.some(i=>i.k===k&&i.mode==='promo'))?' · <span style="color:var(--pri)">🏷️ zo zliav</span>':''}</div><div class="nm">${esc(r.n)}</div>${badge}</div>
+    <div class="info" data-rec="${r.id}" data-m="${m}" data-j="${j}"><div class="k">${MEALS[m].n}</div><div class="nm">${esc(r.n)}</div>${badge}</div>
     ${di===0?`<button class="iconbtn ${bl.locked?'on':''}" title="Zamknúť – pri novom návrhu sa nezmení" data-lock="${m}:${j}">${bl.locked?'🔒':'🔓'}</button><button class="iconbtn" title="Vymeniť jedlo" data-swap="${m}:${j}">🔄</button>`:''}</div>`}
   h+='</div>'}
  return h}
@@ -703,11 +662,11 @@ function tabPlan(){
 function tabShop(){
  const c=V.cost;const by={};
  for(const it of c.items){(by[I[it.k].c]=by[I[it.k].c]||[]).push(it)}
- let h=`<div class="row" style="margin-bottom:12px"><span class="muted">${c.items.length} položiek · klikni na položku, keď ju máš v košíku</span><span class="spacer"></span><button class="btn ghost small" id="copyList">📋 Kopírovať zoznam</button></div>`;
+ let h=`<div class="row" style="margin-bottom:12px"><span class="muted">${c.items.length} položiek · ceny pre ${CHAINS[S.chain].n} · klikni na položku, keď ju máš v košíku</span><span class="spacer"></span><button class="btn ghost small" id="copyList">📋 Kopírovať zoznam</button></div>`;
  for(const cat of Object.keys(CATS)){const arr=by[cat];if(!arr)continue;const sum=arr.reduce((s,x)=>s+x.c,0);
   h+=`<div class="shopcat"><h3><span>${CATS[cat][0]} ${CATS[cat][1]}</span><span class="muted" style="font-size:14px;font-weight:500">${eur(sum)}</span></h3>`;
   for(const it of arr.sort((a,b)=>b.c-a.c)){const g=I[it.k];const done=V.checked[it.k];
-   h+=`<div class="item ${done?'done':''}" data-chk="${it.k}"><span class="cb">${done?'✓':''}</span><div style="flex:1;min-width:0"><div class="nm">${esc(g.n)}</div><div class="sub">${buyTxt(g,it)} · treba ${leftTxt(g,it.q)}${it.left>0.5?` · zostane ${leftTxt(g,it.left)}`:''}</div></div><span class="pr">${it.save>0.005?`<s class="muted" style="font-weight:400;font-size:13px">${eur(it.regCost)}</s><br><span style="color:var(--pri)">${eur(it.c)}</span>`:eur(it.c)}</span></div>`}
+   h+=`<div class="item ${done?'done':''}" data-chk="${it.k}"><span class="cb">${done?'✓':''}</span><div style="flex:1;min-width:0"><div class="nm">${esc(g.n)}</div><div class="sub">${buyTxt(g,it)} · treba ${leftTxt(g,it.q)}${it.left>0.5?` · zostane ${leftTxt(g,it.left)}`:''}</div></div><span class="pr">${eur(it.c)}</span></div>`}
   h+='</div>'}
  const inPlan=new Set(Object.values(V.plan).flat().map(b=>b.rid));
  const wl=c.items.filter(i=>PERISH[I[i.k].c]>=1&&i.left>0.5&&i.wasteV>0.05).sort((a,b)=>b.wasteV-a.wasteV);
@@ -778,7 +737,7 @@ function openSwap(m,j){
   ${list.map(x=>{const d=x.cost-cur;return `<div class="alt ${x.r.id===bl.rid?'cur':''}" data-pick="${x.r.id}"><div class="thumb" style="background:${grad(x.r.id)};width:46px;height:46px;font-size:24px">${x.r.e}</div><div style="flex:1;min-width:0"><b>${esc(x.r.n)}</b><div class="muted" style="font-size:13px">${x.mis?'⚠️ nesedí na všetky odpovede · ':'✅ sedí na tvoje odpovede · '}${Math.round(x.r.nut.kcal)} kcal</div></div><span class="delta ${d>0.004?'up':d<-0.004?'down':''}">${x.r.id===bl.rid?'aktuálne':Math.abs(d)<0.005?'± 0 €':(d>0?'+':'−')+eur(Math.abs(d))}</span></div>`}).join('')}
  </div></div></div>`;
  $('#mclose').onclick=closeM;$('#ov').onclick=e=>{if(e.target.id==='ov')closeM()};
- document.querySelectorAll('[data-pick]').forEach(el=>el.onclick=()=>{bl.rid=el.dataset.pick;bl.locked=true;V.cost=calcCost(V.plan);V.warn=V.warn.filter(w=>w[0]!=='bad'||!w[1].startsWith('Za '));if(V.cost.total>S.budget)V.warn.push(['bad',`Po výmene je nákup ${eur(V.cost.total)} – o ${eur(V.cost.total-S.budget)} nad rozpočtom.`]);closeM();render()});
+ document.querySelectorAll('[data-pick]').forEach(el=>el.onclick=()=>{bl.rid=el.dataset.pick;bl.locked=true;pickChain();V.warn=V.warn.filter(w=>w[0]!=='bad'||!w[1].startsWith('Za '));if(V.cost.total>S.budget)V.warn.push(['bad',`Po výmene je nákup ${eur(V.cost.total)} – o ${eur(V.cost.total-S.budget)} nad rozpočtom.`]);closeM();render()});
 }
 
 /* ---------- events ---------- */
@@ -794,7 +753,7 @@ function bind(){
   on('[data-meal]',el=>{const k=el.dataset.meal;S.meals=S.meals.includes(k)?S.meals.filter(x=>x!==k):[...S.meals,k].sort((a,b)=>'bld'.indexOf(a)-'bld'.indexOf(b));save();render()});
   on('[data-var]',el=>{S.variety=el.dataset.var;save();render()});
   on('[data-goal]',el=>{S.goal=el.dataset.goal;save();render()});
-  on('#pantry',()=>{S.pantry=!S.pantry;save();render()});on('#pult',()=>{S.pult=!S.pult;save();render()});on('[data-card]',el=>{const k=el.dataset.card;S.cards=(S.cards||[]).includes(k)?S.cards.filter(x=>x!==k):[...(S.cards||[]),k];BUYMEMO.clear();save();render()});on('[data-chain]',el=>{S.chain=el.dataset.chain;save();render()});
+  on('#pantry',()=>{S.pantry=!S.pantry;save();render()});on('#pult',()=>{S.pult=!S.pult;save();render()});
   $('#start').onchange=e=>{S.start=e.target.value||DEF.start;save()};
  }
  if(V.screen==='excl'){
@@ -811,7 +770,7 @@ function bind(){
   $('#qNext').onclick=()=>{V.qi++;render()};
  }
  if(V.screen==='result'&&V.plan){
-  on('[data-tab]',el=>{V.tab=el.dataset.tab;render()});on('[data-chain2]',el=>{S.chain=el.dataset.chain2;save();V.cost=calcCost(V.plan);render()});
+  on('[data-tab]',el=>{V.tab=el.dataset.tab;render()});
   $('#regen').onclick=()=>{generate(true);V.checked={};render()};
   on('[data-rec]',el=>openRecipe(el.dataset.rec,el.dataset.m,+el.dataset.j));
   on('[data-lock]',el=>{const [m,j]=el.dataset.lock.split(':');const b=V.plan[m][+j];b.locked=!b.locked;render()});
@@ -829,7 +788,7 @@ function bind(){
  }
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
-render();loadPromo();
+render();
 try{if('serviceWorker' in navigator&&location.protocol==='https:'&&location.hostname.endsWith('github.io'))navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
 </script>
 </body>
