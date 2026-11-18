@@ -197,6 +197,10 @@ table.nt th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-sp
 .lbl{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
 @media(max-width:600px){.nutin{grid-template-columns:1fr 1fr}}
 .switch>span:last-child{text-align:left;flex:1}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:14px;font-weight:600;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:fi .25s ease-out;max-width:90vw;text-align:center;transition:opacity .4s}
+.toast.out{opacity:0}
+.meal.flash{animation:flash 1.2s ease-out}
+@keyframes flash{0%{background:var(--pri-soft)}100%{background:transparent}}
 .foot{margin-top:30px;font-size:13px;color:var(--muted);text-align:center}
 .search{margin-bottom:12px}
 .fadein{animation:fi .3s ease-out}
@@ -208,6 +212,7 @@ table.nt th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-sp
 <div id="modal"></div>
 
 <script src="recepty.js"></script>
+<script src="recepty2.js"></script>
 <script>
 /* =========================================================
    DATA – suroviny: [názov, kategória, jednotka, kcal, bielk., sach., tuky (na 100 g/ml alebo na 1 ks), tagy, základná surovina, cenník]
@@ -316,6 +321,27 @@ const RAW_I = {
  pesto:['Bazalkové pesto','trv','g',450,5,6,45,'laktoza orechy',0,{p:[[190,1.99]]}],
  horcica:['Horčica','trv','g',100,6,6,5,'',0,{p:[[300,0.69]]}],
  pomaranc:['Pomaranče','ovo','g',47,0.9,12,0.1,'',0,{l:[200,1.69]}],
+ celozrn:['Celozrnný chlieb','pec','g',240,9,42,3,'lepok',0,{p:[[500,1.29]]}],
+ listkove:['Lístkové cesto (chladené)','pec','g',400,6,36,26,'lepok',0,{p:[[275,1.19]]}],
+ pizza_cesto:['Cesto na pizzu (chladené)','pec','g',270,7,48,5,'lepok',0,{p:[[400,1.49]]}],
+ kokos_s:['Strúhaný kokos','trv','g',650,6,7,63,'',0,{p:[[200,1.19]]}],
+ hruska:['Hrušky','ovo','g',57,0.4,15,0.1,'',0,{l:[180,2.29]}],
+ ryzove_rez:['Ryžové rezance','trv','g',360,6,80,0.6,'',0,{p:[[250,1.49]]}],
+ puding:['Pudingový prášok','trv','g',350,0.3,86,0.1,'',0,{p:[[37,0.25]]}],
+ cokolada:['Horká čokoláda','trv','g',540,7,45,35,'laktoza',0,{p:[[100,1.29]]}],
+ olivy:['Olivy','trv','g',150,1,4,15,'',0,{p:[[160,1.29]]}],
+ majoneza:['Majonéza','trv','g',680,1,2,74,'vajcia',0,{p:[[250,1.19]]}],
+ fazula_b:['Biela fazuľa (konzerva)','trv','g',100,7,15,0.5,'strukoviny',0,{p:[[240,0.69]]}],
+ hrach:['Lúpaný hrach (suchý)','trv','g',340,23,55,1.5,'strukoviny',0,{p:[[500,0.99]]}],
+ kridla:['Kuracie krídla','mas','g',160,12,0,12,'kuracie maso',0,{p:[[1000,3.99]],pt:3.99}],
+ rebierka:['Bravčové rebierka','mas','g',230,15,0,19,'bravcove maso',0,{p:[[1000,4.99]],pt:4.99}],
+ udene:['Údené bravčové karé','mas','g',180,20,1,11,'bravcove maso',0,{p:[[400,3.49]],pt:8.49}],
+ kapusta_b:['Biela kapusta','zel','g',25,1.3,6,0.1,'',0,{l:[1000,0.99]}],
+ repa:['Červená repa (varená)','zel','g',43,1.6,9,0.2,'',0,{p:[[500,1.29]]}],
+ por:['Pór','zel','g',31,1.5,7,0.3,'cibula',0,{l:[250,2.49]}],
+ zeler:['Zeler','zel','g',20,1,4.5,0.2,'',0,{l:[400,1.79]}],
+ kel:['Kel','zel','g',27,2.8,4.5,0.4,'',0,{l:[800,1.99]}],
+ drozdie:['Droždie','zak','g',100,12,8,2,'',1,{p:[[42,0.15]]}],
  muka:['Hladká múka','zak','g',340,10,72,1,'lepok',1,{p:[[1000,0.45]],f:{K:1.96,T:1.91,B:1.9}}],
  cukor:['Cukor','zak','g',400,0,100,0,'',1,{p:[[1000,0.79]],f:{K:1.13,T:1.13,B:1.15}}],
  olej:['Slnečnicový olej','zak','ml',884,0,0,100,'',1,{p:[[1000,1.69]]}],
@@ -331,7 +357,7 @@ const RAW_I = {
  ocot:['Ocot','zak','ml',0,0,0,0,'',1,{p:[[1000,0.49]]}],
 };
 const SPICES = new Set(['sol','korenie','paprika_m','skorica','oregano','kari','rasca','pdp']);
-const PCS = {banan:[120,'ks'],jablko:[150,'ks'],avokado:[200,'ks'],cibula:[100,'ks'],paprika:[150,'ks'],paradajky:[100,'ks'],citron:[100,'ks'],rozok:[50,'ks'],tortilla:[60,'ks'],mozzarella:[125,'balenie'],cesnak:[5,'strúčik'],toast:[25,'plátok'],chlieb:[40,'krajec'],zemiaky:[150,'ks'],mrkva:[100,'ks'],uhorka:[400,'ks'],salat:[400,'hlávka'],brokolica:[450,'ks'],cuketa:[300,'ks'],karfiol:[700,'ks'],tekvica:[1000,'ks'],baklazan:[300,'ks'],bataty:[300,'ks'],pomaranc:[200,'ks']};
+const PCS = {banan:[120,'ks'],jablko:[150,'ks'],avokado:[200,'ks'],cibula:[100,'ks'],paprika:[150,'ks'],paradajky:[100,'ks'],citron:[100,'ks'],rozok:[50,'ks'],tortilla:[60,'ks'],mozzarella:[125,'balenie'],cesnak:[5,'strúčik'],toast:[25,'plátok'],chlieb:[40,'krajec'],zemiaky:[150,'ks'],mrkva:[100,'ks'],uhorka:[400,'ks'],salat:[400,'hlávka'],brokolica:[450,'ks'],cuketa:[300,'ks'],karfiol:[700,'ks'],tekvica:[1000,'ks'],baklazan:[300,'ks'],bataty:[300,'ks'],pomaranc:[200,'ks'],hruska:[180,'ks'],kapusta_b:[1000,'hlávka'],por:[250,'ks'],zeler:[400,'ks'],kel:[800,'hlávka']};
 const PERISH={pec:1,mli:1,mas:1,zel:1,ovo:1,mra:0.3,trv:0.15,zak:0};
 const CATS = {pec:['🍞','Pečivo'],mli:['🥛','Mliečne a vajcia'],mas:['🥩','Mäso a údeniny'],zel:['🥕','Zelenina'],ovo:['🍎','Ovocie'],mra:['❄️','Mrazené'],trv:['🥫','Trvanlivé'],zak:['🧂','Základné suroviny']};
 
@@ -410,7 +436,7 @@ const RAW_R = [
 const I={}; for(const [id,a] of Object.entries(RAW_I)) I[id]={id,n:a[0],c:a[1],u:a[2],kcal:a[3],b:a[4],s:a[5],t:a[6],tg:(a[7]||'').split(' ').filter(Boolean),pan:!!a[8],pr:a[9]};
 function fac(g,c){return g.pr.f&&g.pr.f[c]!=null?g.pr.f[c]:F[c]}
 function unitP(id,c){const g=I[id],f=fac(g,c);const o=[];(g.pr.p||[]).forEach(([s,p])=>o.push(p/s));if(g.pr.l)o.push(g.pr.l[1]/1000);if(g.pr.pt&&c!=='L')o.push(g.pr.pt/1000);return Math.min(...o)*f}
-const R=RAW_R.concat(window.RAW_R2||[]).map(r=>{const ing=r.i.split(' ').map(x=>{const [k,v]=x.split(':');if(!I[k])console.warn('chyba surovina',k);return [k,+v]});const tg=r.tg.split(' ');const rr={...r,ing,tg,k:r.k||4};rr.nut=nutOf(rr);rr.cost=ing.reduce((s,[k,q])=>s+unitP(k,'L')*q,0);return rr});
+const R=RAW_R.concat(window.RAW_R2||[],window.RAW_R3||[]).map(r=>{const ing=r.i.split(' ').map(x=>{const [k,v]=x.split(':');if(!I[k])console.warn('chyba surovina',k);return [k,+v]});const tg=r.tg.split(' ');const rr={...r,ing,tg,k:r.k||4};rr.nut=nutOf(rr);rr.cost=ing.reduce((s,[k,q])=>s+unitP(k,'L')*q,0);return rr});
 const RB=Object.fromEntries(R.map(r=>[r.id,r]));
 const SHARE={b:0.25,l:0.40,d:0.35};
 const PFC=new Map();
@@ -512,7 +538,7 @@ function buyRegular(id,q,c){
    const mx=Math.ceil((q-amt)/sz-1e-9);for(let n=0;n<=Math.max(0,mx);n++)rec(i+1,[...cnt,[sz,n]],amt+n*sz,cost+n*pr*f)};
   rec(0,[],0,0)}
  if(g.pr.l){const [pc,pu]=g.pr.l;const n=Math.max(1,Math.ceil(q/pc-1e-9));consider({mode:'loose',n,amt:n*pc,cost:n*pc/1000*pu*f})}
- if(g.pr.pt&&c!=='L'&&S.pult){const amt=Math.max(100,Math.ceil(q/50)*50);consider({mode:'pult',amt,cost:amt/1000*g.pr.pt*f})}
+ if(g.pr.pt&&S.pult){const amt=Math.max(100,Math.ceil(q/50)*50);consider({mode:'pult',amt,cost:amt/1000*g.pr.pt*f})}
  return best}
 function buy(id,q,c){
  const key=id+'|'+c+'|'+Math.ceil(q)+'|'+(S.pult?1:0);if(BUYMEMO.has(key))return BUYMEMO.get(key);
@@ -564,7 +590,7 @@ function optimize(relaxed,keep){
  }
  return best}
 
-function pickChain(){let best=null;for(const k of Object.keys(CHAINS)){const c=calcCost(V.plan,k);if(!best||c.total<best.c.total)best={k,c}}S.chain=best.k;V.cost=best.c}
+function pickChain(){S.chain='L';V.cost=calcCost(V.plan,'L')}
 function generate(keepLocks){
  S.chain='L';
  V.warn=[];
@@ -652,7 +678,7 @@ function setup(){
    <div class="row" style="margin-top:10px"><button class="btn ghost small" id="calcBtn">🧮 ${V.calcOpen?'Skryť kalkulačku':'Neviem – vypočítaj mi to'}</button><button class="btn ghost small" id="macroBtn">⚖️ Dopočítať makrá z kalórií</button></div>
    ${V.calcOpen?calcPanel():''}`:''}
   </div>
-  <button class="switch ${S.pult?'on':''}" id="pult" style="margin-bottom:10px"><span class="k"></span><span><b>Mäso, údeniny a syr môžem kúpiť aj pri pulte</b><br><small class="muted">kúpiš presne toľko gramov, koľko treba – menej zvyškov (Kaufland, Tesco, Billa; Lidl pult nemá)</small></span></button>
+  <button class="switch ${S.pult?'on':''}" id="pult" style="margin-bottom:10px"><span class="k"></span><span><b>Mäso, údeniny a syr môžem kúpiť aj pri pulte</b><br><small class="muted">kúpiš presne toľko gramov, koľko treba – menej zvyškov</small></span></button>
   <button class="switch ${S.pantry?'on':''}" id="pantry"><span class="k"></span><span><b>Základné suroviny mám doma</b><br><small class="muted">olej, soľ, korenie, múka, cukor, bujón, ocot – nebudú v nákupe ani v cene</small></span></button>
  </div>
  <div class="navq"><button class="btn ghost" data-go="home">← Späť</button><button class="btn" data-go="excl" ${S.meals.length?'':'disabled'}>Ďalej →</button></div></div>`}
@@ -694,11 +720,10 @@ function result(){
  if(!V.plan)return `<div class="card fadein">${V.warn.map(w=>`<div class="notice ${w[0]}">${w[1]}</div>`).join('')||'<p>Zatiaľ nemáš žiadny plán.</p>'}<button class="btn" data-go="setup">Upraviť zadanie</button></div>`;
  const c=V.cost,over=c.total>S.budget,pct=Math.min(100,c.total/S.budget*100);
  let avg=0;for(let i=0;i<S.days;i++)avg+=dayNut(i).kcal;avg/=S.days;
- const cmp=Object.keys(CHAINS).map(k=>({k,t:calcCost(V.plan,k).total}));const cheapest=cmp.reduce((a,b)=>b.t<a.t?b:a);
  const wasteItems=c.items.filter(i=>PERISH[I[i.k].c]>=1&&i.left>0.5&&i.wasteV>0.05);
  return `<div class="fadein">
  <div class="row" style="margin-bottom:12px"><h2 class="qtitle" style="margin:0">Tvoj plán na ${S.days} ${S.days<5?'dni':'dní'} ✨</h2><span class="spacer"></span>
-  <button class="btn ghost small" data-go="setup">⚙️ Upraviť zadanie</button><button class="btn small" id="regen">🎲 Iný návrh</button></div>
+  <button class="btn ghost small" data-go="setup">⚙️ Upraviť zadanie</button><button class="btn small" id="regen">🔀 Celý nový jedálniček</button></div>
  ${V.warn.map(w=>`<div class="notice ${w[0]}">${w[1]}</div>`).join('')}
  <div class="sumbar">
   <div class="stat"><div class="n" style="color:${over?'var(--bad)':'var(--ok)'}">${eur(c.total)}</div><div class="t">z rozpočtu ${eur(S.budget)}</div><div class="budgetbar"><i style="width:${pct}%;background:${over?'var(--bad)':'var(--ok)'}"></i></div></div>
@@ -706,11 +731,9 @@ function result(){
   <div class="stat"><div class="n" style="color:${c.waste>1.5?'var(--warn)':'var(--ok)'}">${eur(c.waste)}</div><div class="t">čerstvé zvyšky (${wasteItems.length} pol.)</div></div>
   <div class="stat"><div class="n">${Math.round(avg)}</div><div class="t">kcal denne (z plánu, na osobu)</div></div>
  </div>
- <div class="card chaincmp"><div class="row" style="margin-bottom:8px"><b>Rovnaký nákup v obchodoch</b><span class="spacer"></span><span class="muted" style="font-size:13px">zoznam je pre ${CHAINS[S.chain].n}</span></div>
-  <div class="cmpgrid">${cmp.map(x=>`<div class="cmpbtn ${x.k===S.chain?'sel':''}" style="--cc:${CHAINS[x.k].c}"><span class="dot"></span><b>${CHAINS[x.k].n}</b><span>${eur(x.t)}</span>${x.k===cheapest.k?'<em>najlacnejšie</em>':''}</div>`).join('')}</div></div>
- <div class="tabs">${[['plan','📅 Plán'],['shop','🛒 Nákup'],['rec','📖 Recepty'],['nut','💪 Výživa']].map(([k,l])=>`<button class="${V.tab===k?'sel':''}" data-tab="${k}">${l}</button>`).join('')}</div>
+  <div class="tabs">${[['plan','📅 Plán'],['shop','🛒 Nákup'],['rec','📖 Recepty'],['nut','💪 Výživa']].map(([k,l])=>`<button class="${V.tab===k?'sel':''}" data-tab="${k}">${l}</button>`).join('')}</div>
  <div id="tabc">${({plan:tabPlan,shop:tabShop,rec:tabRec,nut:tabNut})[V.tab]()}</div>
- <p class="foot">Ceny sú bežné (nie akciové) ceny – Lidl, Kaufland a Tesco podľa štátneho porovnávača cenyslovensko.sk (7/2026) a Tesco online (11/2026); Billa je odhad. Výživové hodnoty sú približné.</p></div>`}
+ <p class="foot">Ceny sú orientačné bežné (nie akciové) ceny v slovenských obchodoch podľa cenyslovensko.sk (7/2026) a Tesco online (11/2026). Výživové hodnoty sú približné.</p></div>`}
 
 function tabPlan(){
  let h='';
@@ -721,16 +744,16 @@ function tabPlan(){
    let badge;
    if(m==='l'){badge=di===0?`<span class="badge cook">🔪 Uvar dnes ${bl.len>1?`na ${bl.len} dni (${bl.len*S.persons} porcií)`:''}</span>`:`<span class="badge left">♻️ Zvyšok z ${dayGen(bl.start)}</span>`}
    else badge=bl.len>1?`<span class="badge daily">${di===0?'🆕 Nové':'🔁 Ako včera'} · ${di+1}/${bl.len}</span>`:'';
-   h+=`<div class="meal"><div class="thumb" style="background:${grad(r.id)}" data-rec="${r.id}" data-m="${m}" data-j="${j}">${r.e}</div>
+   h+=`<div class="meal ${V.flash===m+':'+j?'flash':''}"><div class="thumb" style="background:${grad(r.id)}" data-rec="${r.id}" data-m="${m}" data-j="${j}">${r.e}</div>
     <div class="info" data-rec="${r.id}" data-m="${m}" data-j="${j}"><div class="k">${MEALS[m].n}</div><div class="nm">${esc(r.n)}</div>${badge}</div>
-    ${di===0?`<button class="iconbtn ${bl.locked?'on':''}" title="Zamknúť – pri novom návrhu sa nezmení" data-lock="${m}:${j}">${bl.locked?'🔒':'🔓'}</button><button class="iconbtn" title="Vymeniť jedlo" data-swap="${m}:${j}">🔄</button>`:''}</div>`}
+    ${di===0?`<button class="iconbtn ${bl.locked?'on':''}" title="Zamknúť – pri novom návrhu sa nezmení" data-lock="${m}:${j}">${bl.locked?'🔒':'🔓'}</button><button class="iconbtn" title="Náhodne vymeniť jedlo" data-swap="${m}:${j}">🎲</button>`:''}</div>`}
   h+='</div>'}
  return h}
 
 function tabShop(){
  const c=V.cost;const by={};
  for(const it of c.items){(by[I[it.k].c]=by[I[it.k].c]||[]).push(it)}
- let h=`<div class="row" style="margin-bottom:12px"><span class="muted">${c.items.length} položiek · ceny pre ${CHAINS[S.chain].n} · klikni na položku, keď ju máš v košíku</span><span class="spacer"></span><button class="btn ghost small" id="copyList">📋 Kopírovať zoznam</button></div>`;
+ let h=`<div class="row" style="margin-bottom:12px"><span class="muted">${c.items.length} položiek · klikni na položku, keď ju máš v košíku</span><span class="spacer"></span><button class="btn ghost small" id="copyList">📋 Kopírovať zoznam</button></div>`;
  for(const cat of Object.keys(CATS)){const arr=by[cat];if(!arr)continue;const sum=arr.reduce((s,x)=>s+x.c,0);
   h+=`<div class="shopcat"><h3><span>${CATS[cat][0]} ${CATS[cat][1]}</span><span class="muted" style="font-size:14px;font-weight:500">${eur(sum)}</span></h3>`;
   for(const it of arr.sort((a,b)=>b.c-a.c)){const g=I[it.k];const done=V.checked[it.k];
@@ -785,7 +808,7 @@ function openRecipe(id,m,j){
    ${bl&&m==='l'&&bl.len>1?`<div class="notice ok">🔪 Toto jedlo uvaríš naraz na ${bl.len} dni. Porcie rozdeľ do krabičiek a daj do chladničky.</div>`:''}
    ${bl&&m!=='l'&&bl.len>1?`<div class="notice ok">🔁 Toto budeš mať ${bl.len} dni po sebe – pripravuj vždy čerstvé (množstvá nižšie sú na 1 deň).</div>`:''}
    <div class="nutr"><div><b>${Math.round(n.kcal)}</b><span>kcal</span></div><div><b>${Math.round(n.b)} g</b><span>bielkoviny</span></div><div><b>${Math.round(n.s)} g</b><span>sacharidy</span></div><div><b>${Math.round(n.t)} g</b><span>tuky</span></div></div>
-   <p class="muted" style="font-size:13px;margin:6px 0 0">Na 1 porciu${F!==1?` – <b>${F>1?'väčšia':'menšia'} porcia (${fmtF(F)} základného receptu)</b> podľa tvojho denného príjmu`:''} · surovinová cena ≈ ${eur(r.ing.reduce((s,[k,q])=>s+unitP(k,S.chain)*q*F,0))} (${CHAINS[S.chain].n})</p>
+   <p class="muted" style="font-size:13px;margin:6px 0 0">Na 1 porciu${F!==1?` – <b>${F>1?'väčšia':'menšia'} porcia (${fmtF(F)} základného receptu)</b> podľa tvojho denného príjmu`:''} · surovinová cena ≈ ${eur(r.ing.reduce((s,[k,q])=>s+unitP(k,S.chain)*q*F,0))}</p>
    <div class="row" style="margin-top:18px"><h3 class="mh3" style="margin:0">Suroviny</h3><span class="spacer"></span>
     <button class="step" id="pm" style="width:36px;height:36px">−</button><b style="min-width:92px;text-align:center">${por} ${por===1?'porcia':por<5?'porcie':'porcií'}</b><button class="step" id="pp" style="width:36px;height:36px">+</button></div>
    <ul class="ingl" style="margin-top:8px">${r.ing.map(([k,q])=>`<li><span>${esc(I[k].n)}</span><b>${fmtQ(k,q*por*F)}</b></li>`).join('')}</ul>
@@ -796,6 +819,22 @@ function openRecipe(id,m,j){
  };draw()}
 function closeM(){$('#modal').innerHTML=''}
 
+function randomSwap(m,j){
+ const bl=V.plan[m][j];const used=new Set(Object.values(V.plan).flat().map(b=>b.rid));
+ const fit=c=>c.r.id!==bl.rid&&(m!=='l'||c.r.k>=bl.len);
+ let pool=candidates(m,false).filter(fit);const fresh=pool.filter(c=>!used.has(c.r.id));if(fresh.length)pool=fresh;
+ if(pool.length<2){const more=candidates(m,true).filter(c=>fit(c)&&!used.has(c.r.id)&&c.mis<=1);if(more.length)pool=pool.concat(more)}
+ if(!pool.length)return toast('Iné jedlo, ktoré by sedelo na tvoje odpovede, už nemám 🤷');
+ const lim=Math.max(S.budget,V.cost.total)+0.005;
+ const opts=pool.map(c=>{const p=JSON.parse(JSON.stringify(V.plan));p[m][j].rid=c.r.id;return {c,cost:quickCost(p).total}});
+ let ok=opts.filter(x=>x.cost<=lim);if(!ok.length)ok=opts.sort((a,b)=>a.cost-b.cost).slice(0,3);
+ const pick=ok[Math.floor(Math.random()*ok.length)];
+ bl.rid=pick.c.r.id;pickChain();
+ V.warn=V.warn.filter(w=>!(w[0]==='bad'&&/^(Za |Po výmene)/.test(w[1])));
+ if(V.cost.total>S.budget)V.warn.push(['bad',`Po výmene je nákup ${eur(V.cost.total)} – o ${eur(V.cost.total-S.budget)} nad rozpočtom.`]);
+ V.flash=m+':'+j;render();V.flash=null;
+ toast(`🎲 ${MEALS[m].n}: ${pick.c.r.e} ${pick.c.r.n}`)}
+function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.classList.add('out'),2300);setTimeout(()=>d.remove(),2800)}
 function openSwap(m,j){
  const bl=V.plan[m][j];
  const list=R.filter(r=>r.m.includes(m)&&!excluded(r)&&(m!=='l'||r.k>=bl.len)).map(r=>{const sc=score(r,m);const p=JSON.parse(JSON.stringify(V.plan));p[m][j].rid=r.id;return {r,mis:sc.mis,cost:quickCost(p).total}}).sort((a,b)=>a.mis-b.mis||a.cost-b.cost);
@@ -849,10 +888,10 @@ function bind(){
   $('#regen').onclick=()=>{generate(true);V.checked={};render()};
   on('[data-rec]',el=>openRecipe(el.dataset.rec,el.dataset.m,+el.dataset.j));
   on('[data-lock]',el=>{const [m,j]=el.dataset.lock.split(':');const b=V.plan[m][+j];b.locked=!b.locked;render()});
-  on('[data-swap]',el=>{const [m,j]=el.dataset.swap.split(':');openSwap(m,+j)});
+  on('[data-swap]',el=>{const [m,j]=el.dataset.swap.split(':');randomSwap(m,+j)});
   on('[data-chk]',el=>{const k=el.dataset.chk;V.checked[k]=!V.checked[k];el.classList.toggle('done');el.querySelector('.cb').textContent=V.checked[k]?'✓':''});
   const cl=$('#copyList');if(cl)cl.onclick=async()=>{
-   const txt='NÁKUPNÝ ZOZNAM – '+CHAINS[S.chain].n+' ('+eur(V.cost.total)+')\n'+Object.keys(CATS).map(cat=>{const a=V.cost.items.filter(i=>I[i.k].c===cat);return a.length?`\n${CATS[cat][1].toUpperCase()}\n`+a.map(i=>`☐ ${I[i.k].n} – ${buyTxt(I[i.k],i).replace(/^\S+ /,'')} (${eur(i.c)})`).join('\n'):''}).join('');
+   const txt='NÁKUPNÝ ZOZNAM ('+eur(V.cost.total)+')\n'+Object.keys(CATS).map(cat=>{const a=V.cost.items.filter(i=>I[i.k].c===cat);return a.length?`\n${CATS[cat][1].toUpperCase()}\n`+a.map(i=>`☐ ${I[i.k].n} – ${buyTxt(I[i.k],i).replace(/^\S+ /,'')} (${eur(i.c)})`).join('\n'):''}).join('');
    try{await navigator.clipboard.writeText(txt);cl.textContent='✅ Skopírované'}catch(e){cl.textContent='Nepodarilo sa skopírovať';}
    setTimeout(()=>{cl.textContent='📋 Kopírovať zoznam'},2000)};
  }
