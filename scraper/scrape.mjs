@@ -4,6 +4,7 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { MAP } from './mapping.mjs';
 import { norm, matches, parseSize, sizeFor, parseTo, parseFrom, decodeEntities, stripTags } from './lib.mjs';
+const today = new Date();
 
 const DEBUG = process.env.DEBUG === '1';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean); // napr. ONLY=T,K
@@ -11,7 +12,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const DELAY = 1500; // ohľaduplne: max. ~1 požiadavka za 1,5 s
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const today = new Date();
+
 const iso = d => d.toISOString().slice(0, 10);
 const plusDays = n => { const d = new Date(today); d.setDate(d.getDate() + n); return iso(d); };
 const num = v => { if (v == null) return null; const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return isFinite(n) ? n : null; };
@@ -149,52 +150,74 @@ async function kaufland(log) {
   return offers;
 }
 
-// ---------- LIDL (lidl.sk – produkty v akcii, dáta v atribúte data-grid-data) ----------
+// ---------- LIDL (lidl.sk – stránky „Ponuka od pondelka/štvrtka“, „Jedlo a nápoje“; dáta v atribúte data-grid-data) ----------
+function lidlDates(d) {
+  const txt = JSON.stringify(d.badges || d.stockAvailability || d.ribbons || '') + ' ' + JSON.stringify(d.price || {});
+  const m = norm(txt).match(/(\d{1,2})\.(\d{1,2})\.\s*-\s*(\d{1,2})\.(\d{1,2})\./);
+  const y = today.getFullYear();
+  const f = (dd, mm) => { let yy = y; if (+mm < today.getMonth() + 1 - 6) yy++; return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`; };
+  if (m) return { from: f(m[1], m[2]), to: f(m[3], m[4]) };
+  const end = d.price && (d.price.endDate || (d.price.discount && d.price.discount.endDate));
+  return { from: null, to: end ? String(end).slice(0, 10) : plusDays(6) };
+}
 async function lidl(log) {
   const offers = [];
-  const home = await get('https://www.lidl.sk/');
-  await dbg('lidl-home.html', home.text || '');
-  const links = new Set();
-  for (const mm of (home.text || '').matchAll(/href="(\/c\/[^"#?]+)"/g)) {
-    const l = mm[1];
-    if (/akci|ponuk|zlav|tyzd|od-pondel|od-stvrt|super|cena/i.test(l)) links.add('https://www.lidl.sk' + l);
-  }
-  let tiles = 0, pages = 0;
-  for (const url of [...links].slice(0, 8)) {
+  const seenPages = new Set(), queue = ['https://www.lidl.sk/'];
+  const want = l => /\/c\/store\/|ponuka-od|jedlo-a-napoje|potravin/i.test(l);
+  const items = new Map();
+  let pages = 0;
+  while (queue.length && pages < 25) {
+    const url = queue.shift(); if (seenPages.has(url)) continue; seenPages.add(url);
     const r = await get(url); if (!r.text) continue; pages++;
-    if (pages <= 2) await dbg('lidl-' + url.split('/').pop(), r.text);
+    if (pages <= 2) await dbg('lidl-' + url.split('/').filter(Boolean).pop(), r.text);
+    for (const mm of r.text.matchAll(/href="(\/[ch]\/[^"#?]+)"/g)) { const u = 'https://www.lidl.sk' + mm[1]; if (want(mm[1]) && !seenPages.has(u)) queue.push(u); }
     for (const mm of r.text.matchAll(/data-grid-data="([^"]+)"/g)) {
       let d; try { d = JSON.parse(decodeEntities(mm[1])); } catch { continue; }
-      const title = d.fullTitle || d.title || '';
-      const p = d.price || {};
-      const price = num(p.price); const old = num(p.oldPrice);
-      const pack = (p.packaging && (p.packaging.text || p.packaging)) || '';
-      const lp = d.lidlPlus && (Array.isArray(d.lidlPlus) ? d.lidlPlus.length : true);
-      const range = stripTags(d.stockAvailability?.badgeInfo?.badgeText || d.ribbons?.map?.(x => x.text).join(' ') || '');
-      if (!title || price == null) continue;
-      tiles++;
-      for (const [id, m] of Object.entries(MAP)) {
-        if (!matches(title, m)) continue;
-        const size = sizeFor(parseSize(String(pack) + ' ' + title), m.u);
-        const perKg = /1\s*kg\s*=/.test(norm(pack)) && !size ? num((norm(pack).match(/=\s*(\d+[.,]\d+)/) || [])[1]) : null;
-        const from = parseFrom(range), to = parseTo(range) || plusDays(6);
-        if (!(old && old > price) && !lp) break; // len skutočné akcie
-        if (perKg) offers.push({ id, ch: 'L', name: title, perKg, from, to, card: !!lp, regular: old });
-        else if (size) offers.push({ id, ch: 'L', name: title, size, price, card: !!lp, cardPrice: lp ? price : null, regular: old, from, to });
-        break;
-      }
+      if (!/^food$|potravin|jedlo/i.test(String(d.category || ''))) continue;
+      const key = d.productId || d.erpNumber || d.fullTitle;
+      if (!items.has(key)) items.set(key, d);
     }
   }
-  log.L = { ok: tiles > 0, pages, tiles, links: links.size };
+  for (const d of items.values()) {
+    const title = d.fullTitle || d.title || ''; const p = d.price || {};
+    const price = num(p.price); const old = num(p.oldPrice ?? p.discount?.deletedPrice);
+    const lpPrice = num(d.lp?.[0]?.price?.price);
+    const pack = String(p.packaging?.text || ''); const base = String(p.basePrice?.text || '');
+    if (!title || price == null) continue;
+    const { from, to } = lidlDates(d);
+    const disc = old && old > price + 0.004; const lpDisc = lpPrice != null && lpPrice < price - 0.004;
+    if (!disc && !lpDisc) continue;
+    for (const [id, m] of Object.entries(MAP)) {
+      if (!matches(title, m)) continue;
+      const perKgPack = /cena za 1 kg|1 kg = /.test(norm(pack)) && !/balen/.test(norm(pack));
+      const size = perKgPack ? null : sizeFor(parseSize(pack + ' ' + title), m.u);
+      const regular = disc ? old : price;
+      if (perKgPack) {
+        if (disc) offers.push({ id, ch: 'L', name: title, perKg: price, regular, from, to });
+        if (lpDisc) offers.push({ id, ch: 'L', name: title + ' (Lidl Plus)', perKg: lpPrice, regular, from, to, card: true });
+      } else if (size) {
+        if (disc) offers.push({ id, ch: 'L', name: title, size, price, regular, from, to });
+        if (lpDisc) offers.push({ id, ch: 'L', name: title, size, price, cardPrice: lpPrice, card: true, regular, from, to });
+      }
+      break;
+    }
+  }
+  log.L = { ok: items.size > 0, pages, foodItems: items.size };
   return offers;
 }
 
 // ---------- hlavný beh ----------
-const SOURCES = { T: tesco, K: kaufland, L: lidl };
-const log = { B: { ok: false, note: 'Billa zverejňuje akcie len v obrázkových letákoch' } };
+// Tesco a Kaufland blokujú prístup zo serverov GitHubu (ochrana proti robotom) – predvolene sa nespúšťajú.
+const SOURCES = { L: lidl, T: tesco, K: kaufland };
+const DEFAULT = ['L'];
+const log = {
+  T: { ok: false, note: 'Tesco blokuje prístup zo serverov GitHubu' },
+  K: { ok: false, note: 'Kaufland blokuje prístup zo serverov GitHubu' },
+  B: { ok: false, note: 'Billa zverejňuje akcie len v obrázkových letákoch' },
+};
 let offers = [];
 for (const [k, fn] of Object.entries(SOURCES)) {
-  if (ONLY.length && !ONLY.includes(k)) continue;
+  if (ONLY.length ? !ONLY.includes(k) : !DEFAULT.includes(k)) continue;
   console.log('Zdroj', k);
   try { offers = offers.concat(await fn(log)); } catch (e) { console.log('  zlyhal:', e.message); log[k] = { ok: false, error: e.message }; }
   console.log('  ', JSON.stringify(log[k]));

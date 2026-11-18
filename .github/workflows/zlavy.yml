@@ -33,7 +33,7 @@ jobs:
         env:
           DEBUG: ${{ github.event.inputs.debug || '0' }}
           ONLY: ${{ github.event.inputs.only || '' }}
-        run: node scraper/scrape.mjs
+        run: node --max-http-header-size=131072 scraper/scrape.mjs
       - name: Ladiace súbory
         if: ${{ github.event.inputs.debug == '1' }}
         uses: actions/upload-artifact@v4
