@@ -467,7 +467,6 @@ const Q=[
  {id:'l_meat',m:'l',type:'multi',t:'Aké mäso chceš na obed?',sub:'Vyber jedno alebo viac. Bez výberu = čokoľvek.',o:[['kura','🐔','Hydina'],['bravc','🐖','Bravčové'],['hov','🐄','Hovädzie'],['ryby','🐟','Ryby'],['bez','🥦','Bezmäsité']]},
  {id:'l_side',m:'l',type:'multi',t:'A čo príloha?',sub:'Vyber obľúbené prílohy.',o:[['ryza','🍚','Ryža'],['zemiaky','🥔','Zemiaky a halušky'],['cestoviny','🍝','Cestoviny a kuskus'],['chlieb','🍞','Chlieb alebo knedľa'],['strukoviny','🫘','Strukoviny']]},
  {id:'l_style',m:'l',type:'single',t:'Slovenská klasika alebo svetová kuchyňa?',o:[['sk','🏡','Slovenská klasika','ako od mamy'],['svet','🌍','Svetová kuchyňa','kari, bolognese, wok…'],['any','🍽️','Oboje','striedať']]},
- {id:'l_spicy',m:'l',type:'single',when:()=>!S.excl.includes('pikant'),t:'Môže byť obed pikantný?',o:[['ano','🌶️','Pokojne',''],['nie','🙂','Radšej nie',''],['any','🤷','Je mi to jedno','']]},
  {id:'d_weight',m:'d',type:'single',t:'Akú večeru máš rád?',o:[['lahke','🥗','Ľahkú','šalát, omeleta, cottage'],['syte','🍽️','Sýtu','tortilla, placky, toasty'],['any','🔀','Podľa nálady','']]},
  {id:'d_temp',m:'d',type:'single',t:'Teplú alebo studenú?',o:[['teple','♨️','Teplú',''],['studene','🧊','Studenú','bez varenia'],['any','🔀','Hocijakú','']]},
  {id:'d_taste',m:'d',type:'single',t:'Slaná alebo aj sladká večera?',o:[['slane','🧂','Slaná',''],['sladke','🍯','Sladká','lievance, jogurt'],['any','🤷','Oboje','']]},
@@ -476,6 +475,7 @@ const Q=[
 /* ---------- state ---------- */
 const DEF={chain:'L',pult:true,soup:true,nut:{on:true,kcal:2000,b:90,s:250,t:70},calc:{sex:'m',age:20,w:75,h:180,act:1.55,goal:'keep'},budget:35,days:7,persons:1,meals:['b','l','d'],pantry:true,variety:'save',goal:'normal',start:new Date().toISOString().slice(0,10),excl:[],exclText:'',ans:{}};
 let S=load()||JSON.parse(JSON.stringify(DEF));
+if(S.ans)delete S.ans.l_spicy;
 let V={screen:'home',qi:0,tab:'plan',plan:null,cost:null,warn:[],checked:{}};
 function save(){try{localStorage.setItem('jedalnicek_v1',JSON.stringify(S))}catch(e){}}
 function load(){try{const x=JSON.parse(localStorage.getItem('jedalnicek_v1'));if(x&&x.ans){const o={...DEF,...x};o.nut={...DEF.nut,...(x.nut||{})};o.calc={...DEF.calc,...(x.calc||{})};return o}}catch(e){}return null}
@@ -512,7 +512,7 @@ function score(r,m){
  if(m==='b'){single('b_taste');single('b_temp');multi('b_base');
   const f=A.b_fruit;if(A.b_taste!=='slane'){if(f==='ano'){r.tg.includes('ovocie')?sc+=2:mis++}else if(f==='nie'&&r.tg.includes('ovocie'))mis++}
   const lim=+A.b_time||60;if(r.t>lim)mis++;else sc+=1}
- if(m==='l'){multi('l_meat');multi('l_side');single('l_style');const sp=A.l_spicy;if(sp==='nie'&&r.tg.includes('pikant'))mis++;if(sp==='ano'&&r.tg.includes('pikant'))sc+=1}
+ if(m==='l'){multi('l_meat');multi('l_side');single('l_style')}
  if(m==='d'){single('d_weight');single('d_temp');single('d_taste')}
  if(S.nut&&S.nut.on){const n=nutP(r,m),sh=shareOf(m);
   const dev=(v,t)=>t>0?Math.min(1.5,Math.abs(v-t*sh)/(t*sh)):0;
@@ -615,7 +615,12 @@ function generate(keepLocks){
 /* =========================================================
    RENDER
    ========================================================= */
-function render(){const a=$('#app');a.innerHTML=topBar()+({home,setup,excl:exclScreen,q:qScreen,loading,result,catalog}[V.screen])();bind();window.scrollTo({top:0})}
+function render(){
+ // na vrch stránky skočí len pri prechode na inú obrazovku (alebo ďalšiu otázku), inak ostane tam, kde si bol
+ const prev=V._last||{},same=prev.screen===V.screen&&(V.screen!=='q'||prev.qi===V.qi),y=window.scrollY;
+ const a=$('#app');a.innerHTML=topBar()+({home,setup,excl:exclScreen,q:qScreen,loading,result,catalog}[V.screen])();bind();
+ if(same)window.scrollTo(0,y);else window.scrollTo(0,0);
+ V._last={screen:V.screen,qi:V.qi}}
 function topBar(){return `<div class="topbar"><div class="logo" data-go="home"><span class="b">🛒</span>Nákupný jedálniček</div>${V.screen!=='catalog'?`<button class="btn ghost small" data-go="catalog">📖 Recepty</button>`:''}</div>`}
 
 function home(){
